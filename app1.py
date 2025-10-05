@@ -83,7 +83,7 @@ def load_and_simulate_pipeline(X, y):
     if X.empty:
         return None, None, None
 
-    st.info(f"Simulating deployment: Training and caching the Scaler, PCA, and SVM models using {len(X)} samples.")
+    # st.info(f"Simulating deployment: Training and caching the Scaler, PCA, and SVM models using {len(X)} samples.")
     
     # 1. Train the Scaler and PCA
     scaler = StandardScaler()
