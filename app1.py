@@ -11,18 +11,18 @@ import time
 # --- Configuration ---
 ASSUMED_CSV_FILE = 'vocal_gender_features_new.csv'
 PCA_COMPONENTS = 10 
-# Based on the notebook, we assume the pipeline is Scaler -> PCA -> SVM
+
+# Define the standardized labels for the prediction output
+LABEL_MAPPING = {
+    0: "Male Voice",
+    1: "Female Voice",
+    # Add more mappings here if you have more classes (e.g., 2: "Child Voice")
+}
 
 # --- 1. DATA AND MODEL LOADING/SIMULATION ---
 
 @st.cache_data
 def load_voice_dataset():
-    """
-    Loads the voice feature dataset from the assumed CSV file.
-    
-    ACTION REQUIRED: Ensure your CSV file is named 'vocal_gender_features_new.csv' 
-    and is uploaded.
-    """
     try:
         # Load the CSV. Assume the first column is the index/ID and 'label' is the target.
         df = pd.read_csv(ASSUMED_CSV_FILE, index_col=0)
@@ -83,7 +83,7 @@ def load_and_simulate_pipeline(X, y):
     if X.empty:
         return None, None, None
 
-    # st.info(f"Simulating deployment: Training and caching the Scaler, PCA, and SVM models using {len(X)} samples.")
+    st.info(f"Simulating deployment: Training and caching the Scaler, PCA, and SVM models using {len(X)} samples.")
     
     # 1. Train the Scaler and PCA
     scaler = StandardScaler()
@@ -127,13 +127,8 @@ def get_prediction(raw_features, scaler, pca, model, feature_names):
         # 4. Final Prediction (SVM)
         prediction_code = model.predict(pca_features)[0]
         
-        # Map the prediction code (0, 1, etc.) back to a label
-        if prediction_code == 1:
-            predicted_label = "Predicted: Female Voice (Label 1)"
-        elif prediction_code == 0:
-            predicted_label = "Predicted: Male Voice (Label 0)"
-        else:
-            predicted_label = f"Predicted: Class {prediction_code}"
+        # Map the prediction code to the descriptive label
+        predicted_label = LABEL_MAPPING.get(prediction_code, f"Predicted: Unknown Class {prediction_code}")
 
         return predicted_label, pca_features.flatten()
         
@@ -146,7 +141,7 @@ def get_prediction(raw_features, scaler, pca, model, feature_names):
 
 def main():
     """Main function to run the Streamlit application."""
-    st.set_page_config(page_title="Voice Classification Deployment", layout="wide")
+    st.set_page_config(page_title="Human Voice Classification and Clustering", layout="wide")
 
     # Load data (X) and target codes (y)
     X_data, y_codes = load_voice_dataset()
@@ -154,7 +149,7 @@ def main():
     # Load or simulate the trained pipeline components
     scaler, pca, svm_model = load_and_simulate_pipeline(X_data, y_codes)
     
-    st.title("🎤 Voice Classification Model Deployment (SVM + PCA)")
+    st.title("🎤 Human Voice Classification and Clustering")
     st.markdown("This app deploys the machine learning pipeline trained for real-time inference.")
     st.markdown("---")
 
@@ -165,8 +160,8 @@ def main():
     st.sidebar.markdown(f"- **Total Features:** {X_data.shape[1]}")
     st.sidebar.markdown(f"- **PCA Components:** {pca.n_components if pca else 'N/A'}")
     st.sidebar.markdown(f"- **Classifier:** Support Vector Machine (SVC)")
-    st.sidebar.markdown(f"---")
-    st.sidebar.markdown("This model was trained only once on app startup using synthetic data to simulate loading your artifacts.")
+    # st.sidebar.markdown(f"---")
+    # st.sidebar.markdown("This model was trained only once on app startup using synthetic data to simulate loading your artifacts.")
 
     # Select Box for Sample
     st.header("1. Select a Voice Sample for Prediction")
