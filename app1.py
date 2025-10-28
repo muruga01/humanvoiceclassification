@@ -9,14 +9,13 @@ from sklearn.model_selection import train_test_split
 import time
 
 # --- Configuration ---
-ASSUMED_CSV_FILE = 'vocal_gender_features_new.csv'
+CSV_FILE = 'vocal_gender_features_new.csv'
 PCA_COMPONENTS = 10 
 
 # Define the standardized labels for the prediction output
 LABEL_MAPPING = {
     0: "Male Voice",
-    1: "Female Voice",
-    # Add more mappings here if you have more classes (e.g., 2: "Child Voice")
+    1: "Female Voice"
 }
 
 # --- 1. DATA AND MODEL LOADING/SIMULATION ---
@@ -25,7 +24,7 @@ LABEL_MAPPING = {
 def load_voice_dataset():
     try:
         # Load the CSV. Assume the first column is the index/ID and 'label' is the target.
-        df = pd.read_csv(ASSUMED_CSV_FILE, index_col=0)
+        df = pd.read_csv(CSV_FILE, index_col=0)
         
         df.columns = df.columns.str.strip()
         
@@ -51,9 +50,9 @@ def load_voice_dataset():
         
     except FileNotFoundError:
         # Fallback to synthetic data for a runnable demo if the file is missing
-        st.info(f"'{ASSUMED_CSV_FILE}' not found. Generating synthetic data for demonstration.")
+        st.info(f"'{CSV_FILE}' not found. Generating synthetic data for demonstration.")
         n_samples = 50
-        n_features = 45 # Based on your previous features list
+        n_features = 45
         
         X_synth = pd.DataFrame(
             np.random.rand(n_samples, n_features) * 300, 
@@ -76,15 +75,9 @@ def load_voice_dataset():
 
 @st.cache_resource
 def load_and_simulate_pipeline(X, y):
-    """
-    Simulates loading the trained StandardScaler, PCA, and SVM models.
-    Since we cannot load joblib files, we train a mock pipeline on the available data.
-    """
     if X.empty:
         return None, None, None
-
-    # st.info(f"Simulating deployment: Training and caching the Scaler, PCA, and SVM models using {len(X)} samples.")
-    
+ 
     # 1. Train the Scaler and PCA
     scaler = StandardScaler()
     pca = PCA(n_components=min(PCA_COMPONENTS, X.shape[1]))
@@ -99,11 +92,6 @@ def load_and_simulate_pipeline(X, y):
     X_train, _, y_train, _ = train_test_split(X_pca, y, test_size=0.8, stratify=y, random_state=42)
     
     svm_model = SVC(kernel='linear', C=1).fit(X_train, y_train)
-    
-    # In a real app, you would simply load the joblib files here:
-    # scaler = joblib.load('scaler.joblib')
-    # pca = joblib.load('pca.joblib')
-    # svm_model = joblib.load('svm_model.joblib')
     
     return scaler, pca, svm_model
 
@@ -156,10 +144,10 @@ def main():
     if X_data.empty or svm_model is None:
         return
 
-    st.sidebar.header("Model Info")
-    st.sidebar.markdown(f"- **Total Features:** {X_data.shape[1]}")
-    st.sidebar.markdown(f"- **PCA Components:** {pca.n_components if pca else 'N/A'}")
-    st.sidebar.markdown(f"- **Classifier:** Support Vector Machine (SVC)")
+    # st.sidebar.header("Model Info")
+    # st.sidebar.markdown(f"- **Total Features:** {X_data.shape[1]}")
+    # st.sidebar.markdown(f"- **PCA Components:** {pca.n_components if pca else 'N/A'}")
+    # st.sidebar.markdown(f"- **Classifier:** Support Vector Machine (SVC)")
     # st.sidebar.markdown(f"---")
     # st.sidebar.markdown("This model was trained only once on app startup using synthetic data to simulate loading your artifacts.")
 
@@ -177,7 +165,7 @@ def main():
     selected_features_array = selected_features_series.to_numpy()
     
     # Prediction Button
-    if st.button("🚀 Run Full Pipeline Prediction"):
+    if st.button("Predict the Voice"):
         
         st.subheader(f"Input: {selected_sample_id} ({X_data.shape[1]} Raw Features)")
         
@@ -225,7 +213,7 @@ def main():
         st.caption("These are the 10 features used by the SVM model for final classification.")
 
     else:
-        st.info("Click the '🚀 Run Full Pipeline Prediction' button to see the model's output and the intermediate PCA scores.")
+        st.info("Click the 'Predict Voice' button to see the model's output and the intermediate PCA scores.")
 
 if __name__ == "__main__":
     main()
