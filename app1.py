@@ -6,6 +6,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
+import joblib
 import time
 
 # --- Configuration ---
@@ -124,6 +126,35 @@ def get_prediction(raw_features, scaler, pca, model, feature_names):
         st.error(f"Prediction Pipeline Error: {e}")
         return "Prediction Failed", np.zeros(pca.n_components)
 
+@st.cache_resource
+def load_and_simulate_pipeline(X, y):
+    if X.empty:
+        return None, None, None, None  # Add None for kmeans
+    
+    # Existing: scaler, pca, svm_model
+    
+    # Add K-Means (load if saved, or fit here for simulation)
+    try:
+        kmeans = joblib.load('kmeans.joblib')  # Load from notebook-saved model
+    except FileNotFoundError:
+        st.info("kmeans.joblib not found. Fitting K-Means on data for demo.")
+        n_clusters = 2
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        X_scaled = scaler.fit_transform(X)  # Reuse scaler
+        X_pca = pca.fit_transform(X_scaled)
+        kmeans.fit(X_pca)  # Fit on PCA features
+    
+    return scaler, pca, svm_model, kmeans
+
+def get_prediction(raw_features, scaler, pca, model, kmeans, feature_names):
+    # Existing prediction code...
+    
+    # Add cluster assignment
+    pca_features = pca.transform(scaler.transform(pd.DataFrame([raw_features], columns=feature_names)))
+    cluster_label = kmeans.predict(pca_features)[0]
+    
+    return predicted_label, pca_features.flatten(), cluster_label
+
 
 # --- 2. STREAMLIT APPLICATION UI ---
 
@@ -135,7 +166,7 @@ def main():
     X_data, y_codes = load_voice_dataset()
     
     # Load or simulate the trained pipeline components
-    scaler, pca, svm_model = load_and_simulate_pipeline(X_data, y_codes)
+    scaler, pca, svm_model, kmeans = load_and_simulate_pipeline(X_data, y_codes)
     
     st.title("🎤 Human Voice Classification and Clustering")
     st.markdown("This app deploys the machine learning pipeline trained for real-time inference.")
@@ -143,13 +174,6 @@ def main():
 
     if X_data.empty or svm_model is None:
         return
-
-    # st.sidebar.header("Model Info")
-    # st.sidebar.markdown(f"- **Total Features:** {X_data.shape[1]}")
-    # st.sidebar.markdown(f"- **PCA Components:** {pca.n_components if pca else 'N/A'}")
-    # st.sidebar.markdown(f"- **Classifier:** Support Vector Machine (SVC)")
-    # st.sidebar.markdown(f"---")
-    # st.sidebar.markdown("This model was trained only once on app startup using synthetic data to simulate loading your artifacts.")
 
     # Select Box for Sample
     st.header("1. Select a Voice Sample for Prediction")
