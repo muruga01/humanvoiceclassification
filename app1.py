@@ -22,12 +22,11 @@ LABEL_MAPPING = {
     1: "Female Voice"
 }
 
-# --- 1. DATA AND MODEL LOADING/SIMULATION ---
+# --- 1. DATA AND MODEL LOADING---
 
 @st.cache_data
 def load_voice_dataset():
     try:
-        # Load the CSV. Assume the first column is the index/ID and 'label' is the target.
         df = pd.read_csv(CSV_FILE, index_col=0)
         
         df.columns = df.columns.str.strip()
