@@ -18,8 +18,8 @@ PCA_COMPONENTS = 10
 
 # Define the standardized labels for the prediction output
 LABEL_MAPPING = {
-    0: "Male Voice",
-    1: "Female Voice"
+    0: "Female Voice",
+    1: "Male Voice"
 }
 
 # --- 1. DATA AND MODEL LOADING---
@@ -256,7 +256,6 @@ def main():
                 st.warning("PCA has fewer than 2 components. Cannot plot 2D scatter.")
 
 if __name__ == "__main__":
-    # Optional: Clear cache on startup (uncomment for debugging)
     st.cache_data.clear()
     st.cache_resource.clear()
     main()
