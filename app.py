@@ -37,7 +37,7 @@ def load_voice_dataset():
 
         # Separate features (X) and target (y)
         X = df.drop(columns=['label'])
-        y = df['label'].astype('category').cat.codes # Encode labels numerically for the mock model
+        y = df['label'].astype('category').cat.codes # Encode labels numerically
 
         # Standardize and make the Sample IDs uniform and sequential
         num_rows = len(X)
@@ -52,25 +52,8 @@ def load_voice_dataset():
         return X, y
         
     except FileNotFoundError:
-        # Fallback to synthetic data for a runnable demo if the file is missing
-        st.info(f"'{CSV_FILE}' not found. Generating synthetic data for demonstration.")
-        n_samples = 50
-        n_features = 45
-        
-        X_synth = pd.DataFrame(
-            np.random.rand(n_samples, n_features) * 300, 
-            columns=[f'feature_{i+1}' for i in range(n_features)]
-        )
-        # Create uniform IDs
-        X_synth.index = [f"Sample_{i+1:03d}" for i in range(n_samples)]
-        
-        # Create synthetic labels (0, 1)
-        y_synth = pd.Series(np.random.randint(0, 2, n_samples), index=X_synth.index)
-        
-        # Assign meaningful names to the first few features for visualization
-        X_synth.rename(columns={0: 'mean_pitch', 1: 'std_pitch', 2: 'mfcc_1_mean'}, inplace=True)
-        
-        return X_synth, y_synth
+        st.error(f"Error: '{CSV_FILE}' not found. Please upload the correct CSV file.")
+        return pd.DataFrame(), pd.DataFrame()
     except Exception as e:
         st.error(f"An error occurred during data loading: {e}")
         return pd.DataFrame(), pd.DataFrame()
@@ -85,7 +68,7 @@ def load_and_simulate_pipeline(X, y):
     scaler = StandardScaler()
     pca = PCA(n_components=min(PCA_COMPONENTS, X.shape[1]))
 
-    # We fit the scaler and PCA on the entire dataset (or the training set if split)
+    # Fit the scaler and PCA on the entire dataset
     X_scaled = scaler.fit_transform(X)
     X_pca = pca.fit_transform(X_scaled)
     
@@ -94,8 +77,16 @@ def load_and_simulate_pipeline(X, y):
     svm_model = SVC(kernel='linear', C=1).fit(X_train, y_train)
     
     # 3. Load K-Means
-    kmeans = joblib.load('kmeans.joblib')
-    st.success("Loaded pre-trained K-Means model from 'kmeans.joblib'")
+    try:
+        kmeans = joblib.load('kmeans.joblib')
+        st.success("Loaded pre-trained K-Means model from 'kmeans.joblib'")
+    except FileNotFoundError:
+        st.error("Error: 'kmeans.joblib' not found. Please ensure the file is in the working directory.")
+        return scaler, pca, svm_model, None
+    except Exception as e:
+        st.error(f"Failed to load K-Means model: {e}")
+        return scaler, pca, svm_model, None
+
     return scaler, pca, svm_model, kmeans
 
 
@@ -138,7 +129,7 @@ def main():
     # Load data (X) and target codes (y)
     X_data, y_codes = load_voice_dataset()
     
-    # Load or simulate the trained pipeline components (4 values)
+    # Load or simulate the trained pipeline components
     scaler, pca, svm_model, kmeans = load_and_simulate_pipeline(X_data, y_codes)
     
     st.title("Human Voice Classification and Clustering")
