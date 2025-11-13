@@ -1,0 +1,14 @@
+streamlit
+numpy
+pandas
+Pipeline
+scikit-learn
+joblib
+StandardScaler
+PCA
+SVC
+KMeans
+train_test_split
+time
+matplotlib
+seaborn
