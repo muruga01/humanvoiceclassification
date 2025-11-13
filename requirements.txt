@@ -1,15 +1,7 @@
 streamlit
 numpy
 pandas
-Pipeline
-scikit-learn
+scikit-learn==1.5.1
 joblib
-StandardScaler
-PCA
-SVC
-KMeans
-train_test_split
-time
 matplotlib
 seaborn
-scikit-learn
