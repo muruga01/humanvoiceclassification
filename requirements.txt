@@ -12,4 +12,4 @@ train_test_split
 time
 matplotlib
 seaborns
-sklearn
+sklearn.pipeline
