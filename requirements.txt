@@ -11,5 +11,5 @@ KMeans
 train_test_split
 time
 matplotlib
-seaborns
+seaborn
 sklearn.pipeline
