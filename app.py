@@ -1,252 +1,106 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.cluster import KMeans
 import joblib
-import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# --- Configuration ---
-CSV_FILE = 'vocal_gender_features_new.csv'
-PCA_COMPONENTS = 10 
+# ============================= CONFIG =============================
+st.set_page_config(page_title="Human Voice Detection", layout="centered")
+st.title("🎤 Human Voice Detection")
+st.markdown("### Enter acoustic features below to instantly detect the speaker's gender")
 
-# Define the standardized labels for the prediction output
-LABEL_MAPPING = {
-    0: "Female Voice",
-    1: "Male Voice"
-}
-
-# --- 1. DATA AND MODEL LOADING---
-
-@st.cache_data
-def load_voice_dataset():
-    try:
-        df = pd.read_csv(CSV_FILE, index_col=0)
-        
-        df.columns = df.columns.str.strip()
-        
-        if 'label' not in df.columns:
-            st.error("Error: The 'label' column (target) was not found in the CSV. Cannot proceed.")
-            return pd.DataFrame(), pd.DataFrame() 
-
-        # Separate features (X) and target (y)
-        X = df.drop(columns=['label'])
-        y = df['label'].astype('category').cat.codes # Encode labels numerically
-
-        # Standardize and make the Sample IDs uniform and sequential
-        num_rows = len(X)
-        new_index = [f"Sample_{i+1:03d}" for i in range(num_rows)]
-        X.index = new_index
-        y.index = new_index
-
-        # Ensure all features are numeric
-        if not X.apply(lambda col: pd.api.types.is_numeric_dtype(col)).all():
-             st.warning("Warning: Some feature columns are not numeric. Please check your data.")
-
-        return X, y
-        
-    except FileNotFoundError:
-        st.error(f"Error: '{CSV_FILE}' not found. Please upload the correct CSV file.")
-        return pd.DataFrame(), pd.DataFrame()
-    except Exception as e:
-        st.error(f"An error occurred during data loading: {e}")
-        return pd.DataFrame(), pd.DataFrame()
-
-
+# ============================= LOAD MODELS =============================
 @st.cache_resource
-def load_and_simulate_pipeline(X, y):
-    if X.empty:
-        return None, None, None, None
+def load_models():
+    scaler = joblib.load('scaler.joblib')
+    pca    = joblib.load('pca.joblib')
+    svm    = joblib.load('svm_model.joblib')   
+    kmeans = joblib.load('kmeans.joblib')
+    return scaler, pca, svm, kmeans
 
-    # 1. Train the Scaler and PCA
-    scaler = StandardScaler()
-    pca = PCA(n_components=min(PCA_COMPONENTS, X.shape[1]))
+scaler, pca, svm_model, kmeans = load_models()
 
-    # Fit the scaler and PCA on the entire dataset
-    X_scaled = scaler.fit_transform(X)
-    X_pca = pca.fit_transform(X_scaled)
-    
-    # 2. Train the Classifier (SVM)
-    X_train, _, y_train, _ = train_test_split(X_pca, y, test_size=0.8, stratify=y, random_state=42)
-    svm_model = SVC(kernel='linear', C=1).fit(X_train, y_train)
-    
-    # 3. Load K-Means
-    try:
-        kmeans = joblib.load('kmeans.joblib')
-        st.success("Loaded pre-trained K-Means model from 'kmeans.joblib'")
-    except FileNotFoundError:
-        st.error("Error: 'kmeans.joblib' not found. Please ensure the file is in the working directory.")
-        return scaler, pca, svm_model, None
-    except Exception as e:
-        st.error(f"Failed to load K-Means model: {e}")
-        return scaler, pca, svm_model, None
+# Get exact feature order from original dataset
+@st.cache_data
+def get_feature_order():
+    df = pd.read_csv('vocal_gender_features_new.csv')
+    return df.drop('label', axis=1).columns.tolist()
 
-    return scaler, pca, svm_model, kmeans
+feature_names = get_feature_order()
 
+# ============================= USER INPUT FORM =============================
 
-def get_prediction(raw_features, scaler, pca, model, kmeans, feature_names):
-    """
-    Runs a prediction using the full deployment pipeline:
-    Raw Features -> Scaling -> PCA -> SVM Prediction + K-Means Clustering
-    """
-    sample_df = pd.DataFrame([raw_features], columns=feature_names)
-    
-    time.sleep(0.5)  # Simulate inference latency
+with st.form(key="voice_form"):
+    c1, c2 = st.columns(2)
 
-    try:
-        # 1. Scaling
-        scaled_features = scaler.transform(sample_df)
-        
-        # 2. PCA
-        pca_features = pca.transform(scaled_features)
-        
-        # 3. SVM Prediction
-        prediction_code = model.predict(pca_features)[0]
-        predicted_label = LABEL_MAPPING.get(prediction_code, f"Predicted: Unknown Class {prediction_code}")
-        
-        # 4. K-Means Clustering
-        cluster_label = kmeans.predict(pca_features)[0]
+    with c1:
+        mean_pitch           = st.number_input("Mean Pitch (Hz)",          50.0,  500.0, 180.0)
+        std_pitch            = st.number_input("Pitch Std Dev",            0.0,  300.0, 80.0)
+        mean_centroid        = st.number_input("Mean Spectral Centroid",   500.0, 4000.0, 1800.0)
+        rms_energy           = st.number_input("RMS Energy",               0.0,   1.0,   0.08)
+        zcr                  = st.number_input("Zero Crossing Rate",       0.0,   0.3,   0.10)
 
-        return predicted_label, pca_features.flatten(), cluster_label
-        
-    except Exception as e:
-        st.error(f"Prediction Pipeline Error: {e}")
-        return "Prediction Failed", np.zeros(pca.n_components), -1
+    with c2:
+        mfcc1 = st.number_input("MFCC 1 (mean)",  -1000.0, 100.0, -300.0)
+        mfcc2 = st.number_input("MFCC 2 (mean)",   -200.0, 200.0,  80.0)
+        mfcc3 = st.number_input("MFCC 3 (mean)",   -150.0, 150.0,  20.0)
+        mfcc4 = st.number_input("MFCC 4 (mean)",   -100.0, 100.0, -10.0)
+        mfcc5 = st.number_input("MFCC 5 (mean)",   -100.0, 100.0, -15.0)
 
+    predict_btn = st.form_submit_button("🔮 Predict Gender")
 
-# --- 2. STREAMLIT APPLICATION UI ---
+# ============================= PREDICTION =============================
+if predict_btn:
+    features = np.zeros(len(feature_names))
 
-def main():
-    """Main function to run the Streamlit application."""
-    st.set_page_config(page_title="Human Voice Classification and Clustering", layout="wide")
+    # Map the inputs we have
+    mapping = {
+        'mean_pitch'              : mean_pitch,
+        'std_pitch'               : std_pitch,
+        'mean_spectral_centroid'  : mean_centroid,
+        'rms_energy'              : rms_energy,
+        'zero_crossing_rate'      : zcr,
+        'mfcc_1_mean'             : mfcc1,
+        'mfcc_2_mean'             : mfcc2,
+        'mfcc_3_mean'             : mfcc3,
+        'mfcc_4_mean'             : mfcc4,
+        'mfcc_5_mean'             : mfcc5,
+    }
 
-    # Load data (X) and target codes (y)
-    X_data, y_codes = load_voice_dataset()
-    
-    # Load or simulate the trained pipeline components
-    scaler, pca, svm_model, kmeans = load_and_simulate_pipeline(X_data, y_codes)
-    
-    st.title("Human Voice Classification and Clustering")
-    st.markdown("This app deploys the machine learning pipeline trained for real-time inference.")
-    st.markdown("---")
+    for col_name, value in mapping.items():
+        if col_name in feature_names:
+            features[feature_names.index(col_name)] = value
 
-    if X_data.empty or svm_model is None or kmeans is None:
-        st.error("Pipeline failed to load. Check data and model files.")
-        return
+    # Fill missing values with realistic column means from training data
+    df_full = pd.read_csv('vocal_gender_features_new.csv').drop('label', axis=1)
+    means = df_full.mean().values
+    features = np.where(features == 0, means, features)
 
-    # Sidebar Info
-    with st.sidebar:
-        st.header("Model Info")
-        st.markdown(f"- **Total Features:** {X_data.shape[1]}")
-        st.markdown(f"- **PCA Components:** {pca.n_components}")
-        st.markdown(f"- **Classifier:** Support Vector Machine (SVC)")
-        st.markdown(f"- **Clustering:** K-Means ({kmeans.n_clusters} clusters)")
-        st.markdown("---")
-        st.markdown("Uses pre-trained `kmeans.joblib` for clustering.")
+    # Reshape for sklearn
+    X_input = features.reshape(1, -1)
 
-    # Select Box for Sample
-    st.header("1. Select a Voice Sample for Prediction")
-    selected_sample_id = st.selectbox(
-        "Choose a Voice Sample ID:",
-        X_data.index
-    )
+    with st.spinner("Analyzing voice features..."):
+        X_scaled = scaler.transform(X_input)
+        X_pca    = pca.transform(X_scaled)
 
-    st.markdown("---")
-    
-    # Get features for the selected sample
-    selected_features_series = X_data.loc[selected_sample_id]
-    selected_features_array = selected_features_series.to_numpy()
-    
-    # Prediction Button
-    if st.button("Predict the Voice"):
-        
-        st.subheader(f"Input: {selected_sample_id} ({X_data.shape[1]} Raw Features)")
-        st.dataframe(selected_features_series.to_frame('Raw Feature Value'), use_container_width=True)
+        gender_code = svm_model.predict(X_pca)[0]
+        cluster     = kmeans.predict(X_pca)[0]
 
-        with st.spinner(f'Running pipeline: Scaling -> PCA ({pca.n_components} comps) -> SVM + K-Means...'):
-            prediction_label, pca_scores, cluster_label = get_prediction(
-                selected_features_array, 
-                scaler, 
-                pca, 
-                svm_model,
-                kmeans,
-                X_data.columns
-            )
-        
-        st.markdown("## Prediction & Analysis Results")
-        
-        col_pred, col_pca = st.columns(2)
-        
-        # Prediction Card
-        with col_pred:
-            st.subheader("Classification Output")
-            st.markdown(
-                f"""
-                <div style="background-color: #e0f7fa; padding: 20px; border-radius: 10px; border-left: 5px solid #00bcd4;">
-                    <h4 style="color: #00838f; margin-top: 0;">Model Prediction:</h4>
-                    <p style="font-size: 1.5em; font-weight: bold; color: #00bcd4;">{prediction_label}</p>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-            st.markdown(f"**Assigned Cluster:** `{cluster_label}`")
-        
-        # PCA Scores Card
-        with col_pca:
-            st.subheader("Intermediate PCA Scores")
-            pca_data = pd.DataFrame(pca_scores, index=[f'PC {i+1}' for i in range(len(pca_scores))], columns=['Score'])
-            st.dataframe(pca_data, use_container_width=True, height=200)
+        gender = "Male Voice" if gender_code == 1 else "Female Voice"
 
-        # PCA Bar Chart
-        st.markdown("---")
-        st.subheader(f"Visualization of {pca.n_components} Principal Components")
-        st.bar_chart(pca_data, use_container_width=True)
-        st.caption("These are the 10 features used by the SVM model for final classification.")
+    # ============================= RESULT DISPLAY =============================
+    st.markdown("## 🎉 Result")
 
+    if gender == "Male Voice":
+        st.markdown("<h1 style='text-align:center; color:#1E88E5;'>🧔 MALE VOICE</h1>", unsafe_allow_html=True)
     else:
-        st.info("Click the 'Predict Voice' button to see the model's output and clustering.")
+        st.markdown("<h1 style='text-align:center; color:#EC407A;'>👩 FEMALE VOICE</h1>", unsafe_allow_html=True)
 
-    # --- Clustering Explorer ---
-    st.markdown("---")
-    st.header("2. Explore Clustering on Full Dataset")
-    
-    n_clusters_user = st.slider("Number of Clusters:", 2, 6, 2, key="cluster_slider")
-    
-    if st.button("Run K-Means Clustering", key="run_clustering"):
-        with st.spinner("Applying K-Means to entire dataset..."):
-            X_scaled = scaler.transform(X_data)
-            X_pca_all = pca.transform(X_scaled)
-            
-            kmeans_temp = KMeans(n_clusters=n_clusters_user, random_state=42, n_init='auto')
-            clusters = kmeans_temp.fit_predict(X_pca_all)
-            
-            from sklearn.metrics import silhouette_score
-            sil_score = silhouette_score(X_pca_all, clusters)
-            
-            st.success(f"Silhouette Score: `{sil_score:.4f}` (higher = better separation)")
+    col1, col2 = st.columns(2)
+    col1.metric("Predicted Gender", gender)
+    col2.metric("Voice Cluster", cluster)
 
-            # 2D Scatter Plot
-            if pca.n_components >= 2:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                scatter = ax.scatter(
-                    X_pca_all[:, 0], X_pca_all[:, 1],
-                    c=clusters, cmap='viridis', alpha=0.7, s=50
-                )
-                ax.set_xlabel('PC 1')
-                ax.set_ylabel('PC 2')
-                ax.set_title(f'K-Means Clustering ({n_clusters_user} Clusters) on PCA Features')
-                plt.colorbar(scatter, ax=ax, label='Cluster')
-                st.pyplot(fig)
-            else:
-                st.warning("PCA has fewer than 2 components. Cannot plot 2D scatter.")
+    with st.expander("See the PCA components that drove the decision"):
+        pca_df = pd.DataFrame(X_pca, columns=[f"PC{i+1}" for i in range(X_pca.shape[1])])
+        st.bar_chart(pca_df.T, use_container_width=True)
 
-if __name__ == "__main__":
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    main()
+st.caption("Powered by SVM + PCA + K-Means — trained on thousands of real voice samples")
