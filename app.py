@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import joblib
 
-# ============================= CONFIG =============================
 st.set_page_config(page_title="Human Voice Detection", layout="centered")
 st.title("🎤 Human Voice Detection")
 st.markdown("### Enter acoustic features below to instantly detect the speaker's gender")
